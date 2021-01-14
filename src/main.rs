@@ -69,18 +69,22 @@ impl Renderable for Sphere {
 
 impl Renderable for Plane {
   
+  // yoinked from https://stackoverflow.com/questions/5666222/3d-line-plane-intersection/18543221#18543221
   fn ray_intersect(&self, source: &TVec3<f32>, dir: &TVec3<f32>) -> Option<f32> {
-    if dir.y.abs() > 1e-3 {
-      let d = (-source.y - self.center.y)/dir.y;
-      let pt = source + dir*d;
-      if d > 0. && pt.x.abs() < 10. && pt.z < -1. && pt.z > -30. {
+    let normal = vec3(0., 1., 0.);
+    let dot = glm::dot(&normal, dir);
+    if dot.abs() > 1e-3 {
+      let w = source - self.center;
+      let d = -glm::dot(&normal, &w) / dot;
+      let pt = (source + (dir * d)) + self.center;
+      if d > 0. && pt.x.abs() < self.size.x && pt.z.abs() < self.size.y {
         return Some(d);
       }
     }
     None
   }
 
-  fn get_normal(&self, hit: &TVec3<f32>) -> TVec3<f32> {
+  fn get_normal(&self, _hit: &TVec3<f32>) -> TVec3<f32> {
     vec3(0., 1., 0.)
   }
 
@@ -155,13 +159,17 @@ fn cast_ray(source: &TVec3<f32>, dir: &TVec3<f32>, scene: Arc<RwLock<Scene>>) ->
 
   match scene_intersect(source, dir, scene.clone()) {
     Some(result) => {
-      let light_dir = vec3(1., 1., 1.);
+      let light_dir = glm::normalize(&vec3(1., 1., 1.));
       let dot: f32 = glm::dot(&result.normal, &light_dir);
+      // depth render
+      // 1.-(result.dist/50.)
+
+      // normal render
       0.1 + dot.max(0_f32) * &result.obj.borrow().material().albedo 
-      // * match scene_intersect(&(result.hit + result.normal * 1e-3), &light_dir, scene.clone()) {
-      //   Some(_) => 0.,
-      //   None => 1.,
-      // }
+      * match scene_intersect(&(result.hit + result.normal * 0.001), &&light_dir, scene.clone()) {
+        Some(_) => 0.,
+        None => 1.,
+      }
     },
     None => 0.,
   }
@@ -174,6 +182,7 @@ fn render(win: &pancurses::Window, scene: Arc<RwLock<Scene>>, view_pos: &TVec3<f
   let w = size.1 as f32;
   let h = size.0 as f32;
   win.mv(0, 0);
+  // let fov: f32 = std::f32::consts::PI/1.2; // ortho fov
   let fov: f32 = std::f32::consts::PI/3.;
   for j in 0..size.0 {
     for i in 0..size.1 {
@@ -210,7 +219,15 @@ fn render(win: &pancurses::Window, scene: Arc<RwLock<Scene>>, view_pos: &TVec3<f
 
       //let dir = forward * dir_z + right * dir_x + up * dir_y;
 
+      // orthographic rendering (only works with look_at matrix)
+      // let ray_start = view_pos + (c2w * vec4(ssx, ssy, 0., 0.)).xyz();
+      // let ray_dir = glm::normalize(&(view_angles - view_pos));
+      // let mut lum = cast_ray(&ray_start, &ray_dir, scene.clone());
+
+      // normal perspective rays
       let mut lum = cast_ray(view_pos, &glm::normalize(&(c2w * vec4(ssx, ssy, -1., 0.)).xyz()), scene.clone());
+
+
       if lum < 0. {
         lum = 0.;
       }
@@ -228,23 +245,23 @@ fn main() {
   window.printw("Hello Rust");
   window.refresh();
   window.nodelay(true);
-  resize_term(20, 50);
+  resize_term(40, 100);
   noecho();
   let scene = Arc::new(RwLock::new(Scene {
     objects: Vec::new()
   }));
-  // scene.write().unwrap().objects.push(Rc::new(RefCell::new(Plane {
-  //   center: vec3(0.,50.,0.),
-  //   size: vec2(0.,0.),
-  //   material: Material {
-  //     albedo: 0.5,
-  //   }
-  // })));
+  scene.write().unwrap().objects.push(Rc::new(RefCell::new(Plane {
+    center: vec3(0.0, -5.0, 0.0),
+    size: vec2(100.0, 100.0),
+    material: Material {
+      albedo: 0.5,
+    }
+  })));
   //let mut balls: Vec<Box<Sphere>> = Vec::new();
   let mut rng = thread_rng();
   for _ in 0..3 {
     scene.write().unwrap().objects.push(Rc::new(RefCell::new(Sphere {
-      center: vec3(rng.gen_range(-20_f32..20_f32), rng.gen_range(-20_f32..20_f32), rng.gen_range(-20_f32..20_f32)),
+      center: vec3(rng.gen_range(-10_f32..10_f32), rng.gen_range(-5_f32..5_f32), rng.gen_range(-10_f32..10_f32)),
       radius: rng.gen_range(2_f32..4_f32),
       material: Material {
         albedo: 1.,
@@ -263,11 +280,17 @@ fn main() {
   //let mut s = sphere.as_mut();
   //let mut s = Sphere {center: vec3(0., 0., -16.), radius: 4.};
   let mut time: f32 = 0.;
-  let radius:f32 = 10.;
+  let radius:f32 = 12.;
   loop {
-    render(&window, Arc::clone(&scene), &vec3(time.sin()*radius,1.,time.cos()*radius), &vec3(0.,0.,0.));
-    //sphere.borrow_mut().center = vec3(time.sin()*3., (time*5.).cos()*3.-5., -16.);
-    time += 0.05;
+    render(&window, Arc::clone(&scene), &vec3(time.sin()*radius,3.,time.cos()*radius), &vec3(0.,0.,0.));
+    // render(&window, Arc::clone(&scene), &vec3(10.0, 10.0, 10.0), &vec3(0., 0., 0.));
+
+    // render(&window, Arc::clone(&scene), &vec3(7.0, 7.0, 10.0), &vec3(0., 0., 0.));
+
+
+    // sphere.borrow_mut().center = vec3(0.0,0.0,time.sin());
+    // sphere.borrow_mut().radius = (3. + (time*2.).sin()) * 2.0;
+    time += 0.04;
     match window.getch() {
       Some(Input::KeyDC) => break,
       Some(_) => (),
