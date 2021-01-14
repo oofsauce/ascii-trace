@@ -167,7 +167,9 @@ fn cast_ray(source: &TVec3<f32>, dir: &TVec3<f32>, scene: Arc<RwLock<Scene>>) ->
   }
   //1.
 }
-fn render(win: &pancurses::Window, scene: Arc<RwLock<Scene>>, viewPos: &TVec3<f32>, viewAngles: &TVec2<f32>) {
+
+// currently using view_angles also for target_pos (cos im lazy)
+fn render(win: &pancurses::Window, scene: Arc<RwLock<Scene>>, view_pos: &TVec3<f32>, view_angles: &TVec3<f32>) {
   let size = win.get_max_yx();
   let w = size.1 as f32;
   let h = size.0 as f32;
@@ -192,10 +194,13 @@ fn render(win: &pancurses::Window, scene: Arc<RwLock<Scene>>, viewPos: &TVec3<f3
 
       // screen space coords ([-1,1] both axes, origin at center)
       let fov_fac = (fov/2.).tan();
-      let ssx = (2. * ndcx - 1.) * ((w/2.)/h) * fov_fac; // for aspect ratio calc we multiply w * 2 as 2 characters make up 1 vertical character
-      let ssy = 1. - 2. * ndcy * fov_fac; // inverted to flip y axis
+      let ssx = (2. * ndcx - 1.) * (w/h) * fov_fac;
+      // inverted to flip y axis
+      let ssy = (1. - 2. * ndcy) * fov_fac * 2.; // * 2, as 1 character is twice as tall as it is wide (roughly)
 
-      let c2w = matrixes::fps_matrix(viewPos, viewAngles);
+      // let c2w = matrixes::fps_matrix(view_pos, &view_angles.xy());
+
+      let c2w = matrixes::look_at_matrix(view_pos, view_angles);
 
       //let c2w =  rotate_x(&rotate_y(&identity(), eulerA.y), eulerA.x);
 
@@ -205,7 +210,7 @@ fn render(win: &pancurses::Window, scene: Arc<RwLock<Scene>>, viewPos: &TVec3<f3
 
       //let dir = forward * dir_z + right * dir_x + up * dir_y;
 
-      let mut lum = cast_ray(viewPos, &glm::normalize(&(c2w * vec4(ssx, ssy, -1., 0.)).xyz()), scene.clone());
+      let mut lum = cast_ray(view_pos, &glm::normalize(&(c2w * vec4(ssx, ssy, -1., 0.)).xyz()), scene.clone());
       if lum < 0. {
         lum = 0.;
       }
@@ -223,7 +228,7 @@ fn main() {
   window.printw("Hello Rust");
   window.refresh();
   window.nodelay(true);
-  resize_term(40, 80);
+  resize_term(20, 50);
   noecho();
   let scene = Arc::new(RwLock::new(Scene {
     objects: Vec::new()
@@ -237,7 +242,7 @@ fn main() {
   // })));
   //let mut balls: Vec<Box<Sphere>> = Vec::new();
   let mut rng = thread_rng();
-  for _ in 0..0 {
+  for _ in 0..3 {
     scene.write().unwrap().objects.push(Rc::new(RefCell::new(Sphere {
       center: vec3(rng.gen_range(-20_f32..20_f32), rng.gen_range(-20_f32..20_f32), rng.gen_range(-20_f32..20_f32)),
       radius: rng.gen_range(2_f32..4_f32),
@@ -258,8 +263,9 @@ fn main() {
   //let mut s = sphere.as_mut();
   //let mut s = Sphere {center: vec3(0., 0., -16.), radius: 4.};
   let mut time: f32 = 0.;
+  let radius:f32 = 10.;
   loop {
-    render(&window, Arc::clone(&scene), &vec3(0.,0.,10.), &vec2(0.,0.));
+    render(&window, Arc::clone(&scene), &vec3(time.sin()*radius,1.,time.cos()*radius), &vec3(0.,0.,0.));
     //sphere.borrow_mut().center = vec3(time.sin()*3., (time*5.).cos()*3.-5., -16.);
     time += 0.05;
     match window.getch() {
