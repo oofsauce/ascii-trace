@@ -253,7 +253,7 @@ fn main() {
   window.printw("Hello Rust");
   window.refresh();
   window.nodelay(true);
-  resize_term(40, 100);
+  // resize_term(40, 100);
   noecho();
   let scene = Arc::new(RwLock::new(Scene {
     objects: Vec::new()
