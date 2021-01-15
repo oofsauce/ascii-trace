@@ -1,2 +1,4 @@
-# ascii-march
-ASCII ray marcher written in Rust
+# ascii-engine
+ASCII engine written in Rust
+
+This particular branch runs single-threaded ray tracing to produce the results.
