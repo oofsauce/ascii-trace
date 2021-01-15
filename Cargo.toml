@@ -9,6 +9,8 @@ edition = "2018"
 [dependencies]
 nalgebra-glm = "0.10.0"
 rand = "0.8.1"
+futures = "0.3.11"
+tokio = { version = "1.0.1", features = ["full"] }
 
 [dependencies.pancurses]
 version = "0.16"
